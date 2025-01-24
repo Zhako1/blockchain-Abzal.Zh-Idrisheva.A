@@ -14,5 +14,5 @@ class Block:
         return manual_hash(block_data)
 
 if __name__ == "__main__":
-    block = Block("Пример блока", "12345")
+    block = Block("Блок мысалы", "12345")
     print(f"Хэш блока: {block.hash}")
