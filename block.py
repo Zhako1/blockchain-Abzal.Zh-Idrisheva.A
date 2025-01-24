@@ -1,4 +1,3 @@
-#1apta
 import datetime
 from manual_hash import manual_hash
 
