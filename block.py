@@ -1,17 +1,23 @@
 import datetime
+from merkle_tree import MerkleTree
+from transaction import Transaction
 from manual_hash import manual_hash
 
 class Block:
-    def __init__(self, data, previous_hash=''):
-        self.data = data
+    def __init__(self, transactions, previous_hash=''):
+        self.transactions = transactions
         self.timestamp = datetime.datetime.now()
         self.previous_hash = previous_hash
+        self.merkle_root = self.calculate_merkle_root()
         self.hash = self.calculate_hash()
 
-    def calculate_hash(self):
-        block_data = f"{self.data}{self.timestamp}{self.previous_hash}"
-        return manual_hash(block_data)
+    def calculate_merkle_root(self):
+        if not self.transactions:
+            return ''
+        transaction_hashes = [tx.transaction_hash for tx in self.transactions]
+        merkle_tree = MerkleTree(transaction_hashes)
+        return merkle_tree.root.hash_value
 
-if __name__ == "__main__":
-    block = Block("Блок мысалы", "12345")
-    print(f"Хэш блока: {block.hash}")
+    def calculate_hash(self):
+        block_data = f"{self.merkle_root}{self.timestamp}{self.previous_hash}"
+        return manual_hash(block_data)
