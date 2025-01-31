@@ -6,7 +6,6 @@ def manual_hash(data):
     hex_hash = hex(hash_value)[2:]
     return hex_hash.zfill(8)
 
-
 if __name__ == "__main__":
     print(manual_hash("1"))
     print(manual_hash("Мысалы"))
