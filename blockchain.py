@@ -1,37 +1,44 @@
-import json
 from block import Block
-from utxo import UTXO
 from transaction import Transaction
+from utxo import UTXO
+import json
 
 class Blockchain:
     def __init__(self):
-        self.chain = [Block([])]
-        self.utxo = UTXO()
-        self.load_transactions()
+        self.chain = []
+        self.utxo = UTXO()  # Инициализация UTXO
 
     def add_block(self, transaction):
         if self.validate_transaction(transaction):
-            previous_block = self.chain[-1]
-            new_block = Block([transaction], previous_block.hash)
+            new_block = Block([transaction], self.get_last_block_hash())
             self.chain.append(new_block)
-            self.save_transactions()
             return True
         return False
+
+    def save_to_file(self, filename):
+        with open(filename, 'w') as f:
+            json.dump([block.to_dict() for block in self.chain], f, default=str)
+
+    def load_from_file(self, filename):
+        with open(filename, 'r') as f:
+            blocks = json.load(f)
+            for block_data in blocks:
+                block = Block(
+                    transactions=[Transaction(**tx) for tx in block_data['transactions']],
+                    previous_hash=block_data['previous_hash']
+                )
+                self.chain.append(block)
 
     def validate_transaction(self, transaction):
         return self.utxo.create_utxo(transaction)
 
-    def save_transactions(self):
-        with open('transactions.json', 'w') as f:
-            transactions = [tx.to_dict() for block in self.chain for tx in block.transactions]
-            json.dump(transactions, f)
+    def get_last_block_hash(self):
+        if not self.chain:
+            return ''
+        return self.chain[-1].hash  # Предполагается, что у класса Block есть атрибут hash
 
-    def load_transactions(self):
-        try:
-            with open('transactions.json', 'r') as f:
-                transactions = json.load(f)
-                for tx_data in transactions:
-                    transaction = Transaction(tx_data['sender'], tx_data['recipient'], tx_data['amount'], tx_data['fee'])
-                    self.add_block(transaction)
-        except FileNotFoundError:
-            pass
+    def get_balance(self, address):
+        return self.utxo.utxos.get(address, 0)  # Получение баланса через UTXO
+
+    def get_blocks(self):
+        return self.chain  # Возвращает все блоки
