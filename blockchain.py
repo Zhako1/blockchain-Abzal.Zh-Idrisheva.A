@@ -4,16 +4,20 @@ from utxo import UTXO
 import json
 
 class Blockchain:
-    def __init__(self):
+    def __init__(self, wallets):
         self.chain = []
         self.utxo = UTXO()  # Инициализация UTXO
+        self.wallets = wallets  # Сохраняем словарь кошельков
 
+    # blockchain.py
     def add_block(self, transaction):
         if self.validate_transaction(transaction):
             new_block = Block([transaction], self.get_last_block_hash())
             self.chain.append(new_block)
             return True
-        return False
+        else:
+            print("Ошибка: Транзакция не прошла валидацию.")
+            return False
 
     def save_to_file(self, filename):
         with open(filename, 'w') as f:
@@ -30,7 +34,19 @@ class Blockchain:
                 self.chain.append(block)
 
     def validate_transaction(self, transaction):
-        return self.utxo.create_utxo(transaction)
+        # Проверка наличия средств
+        if not self.utxo.create_utxo(transaction):
+            print(
+                f"Недостаточно средств для транзакции от {transaction.sender} на сумму {transaction.amount + transaction.fee}.")
+            return False
+
+        # Проверка подписи
+        sender_public_key = self.wallets[transaction.sender].get_public_key()
+        if not transaction.verify_signature(sender_public_key):
+            print(f"Подпись транзакции от {transaction.sender} неверна.")
+            return False
+
+        return True
 
     def get_last_block_hash(self):
         if not self.chain:
@@ -42,3 +58,9 @@ class Blockchain:
 
     def get_blocks(self):
         return self.chain  # Возвращает все блоки
+
+    def resolve_conflicts(self, new_chain):
+        if len(new_chain) > len(self.chain):
+            self.chain = new_chain
+            return True
+        return False
