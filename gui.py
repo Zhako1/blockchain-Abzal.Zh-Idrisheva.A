@@ -15,16 +15,16 @@ class WalletApp:
         self.blockchain = Blockchain(self.wallets)
         self.create_scrollable_frame()
         self.create_widgets()
-        self.is_blockchain_loaded = False  # Исправлено здесь
+        self.is_blockchain_loaded = False  
         self.load_blockchain()
 
-        self.node_address = '127.0.0.1:5001'  # Убедитесь, что адрес задан правильно
+        self.node_address = '127.0.0.1:5001'  
         self.node = Node(self.node_address, self.wallets)
         print(f"[NODE] Узел создан с адресом: {self.node_address}")
         print(f"[NODE] Узел создан с адресом: {self.node_address}")
 
     def create_scrollable_frame(self):
-        self.canvas = tk.Canvas(self.master)  # Изменено на self.master
+        self.canvas = tk.Canvas(self.master) 
         self.scrollbar = tk.Scrollbar(self.master, orient="vertical", command=self.canvas.yview)
         self.scrollable_frame = tk.Frame(self.canvas)
 
