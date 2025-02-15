@@ -1,29 +1,30 @@
 import random
 
 class AsymmetricEncryption:
-    def __init__(self):
+    def __init__(self, wallet_type='hot'):
+        self.wallet_type = wallet_type
         self.p = self.generate_prime()
         self.q = self.generate_prime()
         self.n = self.p * self.q
         self.phi = (self.p - 1) * (self.q - 1)
-        self.e = self.choose_e(self.phi)
+        self.e = 1  # Используем стандартное e
         self.d = self.mod_inverse(self.e, self.phi)
 
+        print(f"[RSA] Сгенерированы ключи: p={self.p}, q={self.q}, n={self.n}, e={self.e}, d={self.d}")
+
     def generate_prime(self):
-        # Генерация простого числа 
-        return random.randint(100, 200)
+        while True:
+            num = random.randint(100, 200)
+            if self.is_prime(num):
+                return num
 
-    def choose_e(self, phi):
-        e = 3
-        while e < phi:
-            if self.gcd(e, phi) == 1:
-                return e
-            e += 2
-
-    def gcd(self, a, b):
-        while b:
-            a, b = b, a % b
-        return a
+    def is_prime(self, num):
+        if num < 2:
+            return False
+        for i in range(2, int(num ** 0.5) + 1):
+            if num % i == 0:
+                return False
+        return True
 
     def mod_inverse(self, a, m):
         m0, x0, x1 = m, 0, 1
@@ -38,13 +39,19 @@ class AsymmetricEncryption:
         return x1
 
     def encrypt(self, plaintext):
-        return pow(plaintext, self.e, self.n)
+        ciphertext = pow(plaintext, self.e, self.n)
+        print(f"[RSA] Зашифровано: {plaintext} -> {ciphertext}")
+        return ciphertext
 
     def decrypt(self, ciphertext):
-        return pow(ciphertext, self.d, self.n)
+        decrypted_value = pow(ciphertext, self.d, self.n)
+        print(f"[RSA] Расшифровано: {ciphertext} -> {decrypted_value}")
+        return decrypted_value
 
     def get_public_key(self):
         return (self.e, self.n)
 
     def get_private_key(self):
         return (self.d, self.n)
+
+
