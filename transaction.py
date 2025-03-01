@@ -28,10 +28,12 @@ class Transaction:
         decrypted_signature = pow(int(self.signature, 16), public_key[0], public_key[1])  # Расшифровка
 
         if decrypted_signature == expected_hash:
-            print("[VERIFY]  Подпись верна.")
+            if not self.is_verified_logged:  # Проверяем флаг
+                logging.info("Подпись верна.")
+                self.is_verified_logged = True
             return True
         else:
-            print("[VERIFY]  Подпись неверна.")
+            logging.info("[VERIFY] Подпись неверна.")
             return False
 
     def to_dict(self):
