@@ -4,6 +4,7 @@ import threading
 import logging
 from blockchain import Blockchain
 from transaction import Transaction
+from block import Block
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
@@ -21,10 +22,10 @@ class Node:
         self.address = address  # Локальный адрес с портом
         self.blockchain = Blockchain(wallets)
         self.peers = set()  # Множество для хранения адресов других узлов
+         self.mempool = []  # Очередь неподтвержденных транзакций
+        self.is_node_created_logged = False  # Флаг для логирования создания узла
 
-        logging.info(f"Узел создан с адресом: {self.address}")
-
-        self.start_server()  # Запускаем сервер для обработки входящих соединений
+        self.start_server()
 
     def add_peer(self, peer_address):
         """Добавляет адрес другого узла в список пиров."""
