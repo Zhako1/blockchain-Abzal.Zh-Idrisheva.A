@@ -1,4 +1,5 @@
 from manual_hash import manual_hash
+import logging
 
 class Transaction:
     def __init__(self, sender, recipient, amount, fee, transaction_hash=None, signature=None):
@@ -8,6 +9,7 @@ class Transaction:
         self.fee = fee
         self.transaction_hash = transaction_hash or self.calculate_hash()
         self.signature = signature
+        self.is_verified_logged = False
 
     def calculate_hash(self):
         transaction_data = f"{self.sender}{self.recipient}{self.amount}{self.fee}"
