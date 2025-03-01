@@ -3,9 +3,15 @@ from tkinter import messagebox
 from blockchain import Blockchain
 from asymmetric_encryption import AsymmetricEncryption
 from transaction import Transaction
+import threading
+import time
 import random
 import json
+import socket
+import logging
 from node import Node
+
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 class WalletApp:
     def __init__(self, master):
@@ -20,8 +26,12 @@ class WalletApp:
 
         self.node_address = '127.0.0.1:5001'  
         self.node = Node(self.node_address, self.wallets)
-        print(f"[NODE] Узел создан с адресом: {self.node_address}")
-        print(f"[NODE] Узел создан с адресом: {self.node_address}")
+        logging.info(f" Узел создан с адресом: {self.node_address}")
+
+        self.update_thread = threading.Thread(target=self.update_data, daemon=True)
+        self.update_thread.start()
+        self.block_list = tk.Listbox(master)  # Пример списка для отображения блоков
+        self.block_list.pack()
 
     def create_scrollable_frame(self):
         self.canvas = tk.Canvas(self.master) 
@@ -39,25 +49,20 @@ class WalletApp:
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
 
-    def create_widgets(self):
-
+        def create_widgets(self):
         self.hot_wallet_var = tk.BooleanVar(value=True)
         tk.Radiobutton(self.master, text="Горячий кошелек", variable=self.hot_wallet_var, value=True).pack()
         tk.Radiobutton(self.master, text="Холодный кошелек", variable=self.hot_wallet_var, value=False).pack()
 
-        # Создание кошелька
         tk.Label(self.master, text="Создать кошелек").pack()
         tk.Button(self.master, text="Создать", command=self.create_wallet).pack()
 
-        # Ввод адреса
         tk.Label(self.master, text="Адрес:").pack()
         self.address_entry = tk.Entry(self.master)
         self.address_entry.pack()
 
-        # Показать баланс
         tk.Button(self.master, text="Показать баланс", command=self.show_balance).pack()
 
-        # Инициировать транзакцию
         tk.Label(self.master, text="Получатель:").pack()
         self.recipient_entry = tk.Entry(self.master)
         self.recipient_entry.pack()
@@ -68,10 +73,8 @@ class WalletApp:
 
         tk.Button(self.master, text="Инициировать транзакцию", command=self.initiate_transaction).pack()
 
-        # Показать блоки
         tk.Button(self.master, text="Показать блоки", command=self.show_blocks).pack()
 
-        # Показать ключи
         tk.Button(self.master, text="Показать ключи", command=self.show_keys).pack()
 
         tk.Button(self.master, text="Сохранить блокчейн", command=self.save_blockchain).pack()
@@ -83,12 +86,12 @@ class WalletApp:
         messagebox.showinfo("Сохранение", "Блокчейн успешно сохранен!")
 
     def load_blockchain(self):
-        if not self.is_blockchain_loaded:  # Проверяем, был ли загружен блокчейн
+        if not self.is_blockchain_loaded:
             try:
                 self.blockchain.load_from_file('blockchain.json')
                 messagebox.showinfo("Загрузка", "Блокчейн успешно загружен!")
-                self.is_blockchain_loaded = True  # Устанавливаем флаг
-                self.load_button.config(state=tk.DISABLED)  # Делаем кнопку неактивной
+                self.is_blockchain_loaded = True
+                self.load_button.config(state=tk.DISABLED)
             except FileNotFoundError:
                 messagebox.showwarning("Загрузка", "Файл блокчейна не найден. Начинаем с пустого блокчейна.")
             except json.JSONDecodeError:
@@ -101,16 +104,20 @@ class WalletApp:
         wallet = AsymmetricEncryption(wallet_type)
         public_key = wallet.get_public_key()
 
-        # Генерируем адрес в формате 'IP:PORT'
-        address = f"127.0.0.1:{public_key[1]}"  # Используйте фиксированный IP и порт из ключа
-
+        while True:
+            port = random.randint(5002, 6000)
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                if s.connect_ex(('127.0.0.1', port)) != 0:
+                    break
+        address = f"127.0.0.1:{port}"
         self.wallets[address] = wallet
         self.blockchain.utxo.utxos[address] = self.blockchain.utxo.initial_balance
 
-        # Добавляем адрес кошелька как узел
+        new_node = Node(address, self.wallets)
+        logging.info(f"Узел создан с адресом: {address}")
+
         self.node.add_peer(address)
         messagebox.showinfo("Кошелек создан", f"Ваш адрес: {address}")
-
 
     def show_balance(self):
         address = self.address_entry.get()
@@ -125,32 +132,79 @@ class WalletApp:
         recipient = self.recipient_entry.get()
         try:
             amount = float(self.amount_entry.get())
-            fee = 1  # Замените на фактическую комиссию
+            fee = 1
 
-            # Проверка баланса перед инициализацией транзакции
-            balance = self.blockchain.get_balance(sender)
-            print(f"Баланс отправителя {sender}: {balance}")  # Вывод текущего баланса
-            if balance < amount + fee:
-                messagebox.showerror("Ошибка", "Недостаточно средств для транзакции.")
-                return
-
-            if sender in self.wallets:
-                private_key = self.wallets[sender].get_private_key()
-                transaction = Transaction(sender, recipient, amount, fee)
-                transaction.sign_transaction(private_key)
-
-                self.node.receive_transaction(transaction)  # Отправляем транзакцию узлу
-                messagebox.showinfo("Успех", "Транзакция успешно добавлена!")
-            else:
-                messagebox.showerror("Ошибка", "Кошелек не найден.")
+            # Запускаем обработку транзакции в отдельном потоке
+            transaction_thread = threading.Thread(target=self.process_transaction, args=(sender, recipient, amount, fee))
+            transaction_thread.start()
         except ValueError:
             messagebox.showerror("Ошибка", "Пожалуйста, введите корректное значение для суммы.")
 
+    def process_transaction(self, sender, recipient, amount, fee):
+        balance = self.blockchain.get_balance(sender)
+        if balance < amount + fee:
+            self.show_error("Недостаточно средств для транзакции.")
+            return
+
+        if sender in self.wallets:
+            private_key = self.wallets[sender].get_private_key()
+            transaction = Transaction(sender, recipient, amount, fee)
+            transaction.sign_transaction(private_key)
+
+            # Проверяем, можно ли добавить транзакцию в mempool
+            if self.node.add_transaction_to_mempool(transaction):
+                self.mine_block()  # Создаем блок после добавления транзакции
+                self.show_info("Транзакция успешно добавлена!")
+            else:
+                self.show_error("Не удалось добавить транзакцию в mempool.")
+        else:
+            self.show_error("Кошелек не найден.")
+
+    def show_error(self, message):
+        # Обновление интерфейса должно происходить в основном потоке
+        self.master.after(0, lambda: messagebox.showerror("Ошибка", message))
+
+    def show_info(self, message):
+        # Обновление интерфейса должно происходить в основном потоке
+        self.master.after(0, lambda: messagebox.showinfo("Успех", message))
+
+
+    def mine_block(self):
+        if self.node.mempool:  # Проверяем, есть ли транзакции в mempool
+            new_block = Block(transactions=self.node.mempool, previous_hash=self.blockchain.get_last_block_hash())
+            difficulty = 4  # Установите уровень сложности
+
+            miner_address = self.address_entry.get()  # Получаем адрес майнера из интерфейса
+
+            for tx in new_block.transactions:
+                logging.info(f"Транзакция: {tx.sender} -> {tx.recipient}, сумма: {tx.amount}")
+
+            if self.blockchain.add_block(new_block, difficulty, miner_address):  # Передаем miner_address
+                self.node.mempool.clear()  # Очищаем mempool после добавления блока
+                logging.info("Блок успешно добавлен в блокчейн.")
+            else:
+                logging.error("Не удалось добавить блок в блокчейн.")
+        else:
+            logging.info("Нет транзакций для майнинга.")
+
+    def update_data(self):
+        while True:
+            time.sleep(10)
+            self.refresh_data()
+
+    def refresh_data(self):
+        new_blocks = self.node.get_chain()
+        # Используем after для обновления интерфейса в основном потоке
+        self.master.after(0, self.show_blocks)  # Обновляем отображение блоков
+
     def show_blocks(self):
+        blocks = self.blockchain.get_blocks()
+        self.display_blocks(blocks)
+
+    def display_blocks(self, blocks):
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy()
 
-        blocks = self.blockchain.get_blocks()
         for index, block in enumerate(blocks):
             frame = tk.Frame(self.scrollable_frame, padx=10, pady=10, relief=tk.RIDGE, borderwidth=2)
             frame.pack(fill=tk.X, padx=10, pady=5)
@@ -161,7 +215,6 @@ class WalletApp:
             tk.Label(frame, text=f"Меркле корень: {block.merkle_root}", font=("Arial", 10)).pack(anchor="w")
             tk.Label(frame, text=f"Хэш блока: {block.hash}", font=("Arial", 10)).pack(anchor="w")
 
-            # Отображение транзакций
             for tx in block.transactions:
                 tk.Label(frame,
                          text=f"Транзакция: {tx.transaction_hash}, Отправитель: {tx.sender}, Получатель: {tx.recipient}, "
